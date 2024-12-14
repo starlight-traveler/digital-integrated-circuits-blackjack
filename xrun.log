@@ -1,0 +1,18 @@
+xrun(64): 19.03-s013: (c) Copyright 1995-2019 Cadence Design Systems, Inc.
+TOOL:	xrun(64)	19.03-s013: Started on Dec 14, 2024 at 11:18:41 EST
+xrun
+	blackjack.v
+	blackjack_test.v
+Loading snapshot worklib.blackjack_top_tb:v .................... Done
+xcelium> source /escnfs/home/csesoft/cadence/installs/XCELIUM1903/tools/xcelium/files/xmsimrc
+xcelium> run
+Initial Seed: 01010
+------------------------------------------------
+Final Player Sum: 14
+Final Dealer Sum: 24
+Blackjack: 0, Win: 1, Lose: 0, Draw: 0
+------------------------------------------------
+Simulation complete via $finish(1) at time 395 NS + 0
+./blackjack_test.v:154     $finish;
+xcelium> exit
+TOOL:	xrun(64)	19.03-s013: Exiting on Dec 14, 2024 at 11:18:42 EST  (total: 00:00:01)
