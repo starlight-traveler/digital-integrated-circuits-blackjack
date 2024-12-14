@@ -79,7 +79,7 @@ initial begin
     #6;
 
     // Generate a random seed
-    seed = ($random) ^ ($random << 3) ^ ($time % 32);
+    seed = ($urandom) ^ ($urandom << 3) ^ ($time % 32);
 
     // Ensure seed is not zero
     if (seed == 0) seed = 5'b00001;

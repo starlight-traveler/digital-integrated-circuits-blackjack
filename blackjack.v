@@ -41,8 +41,6 @@ module blackjack_top (
     reg [5:0] card_temp;
     reg [4:0] generated_card;
 
-    // Expose LFSR state
-
     // Generate the card value from LFSR using some funky math
     always @(*) begin
         card_temp = {2'b00, lfsr[3:0]} + 6'd1; // range 1 to 16
