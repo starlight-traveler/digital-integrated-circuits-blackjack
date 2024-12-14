@@ -2,7 +2,7 @@
 
 module blackjack_top_tb;
 
-// Testbench Signals
+// Testbench Signals that are instantiated
 reg clk;
 reg reset;
 reg [4:0] card_in;
@@ -18,7 +18,8 @@ wire draw;
 wire blackjack;
 // wire [4:0] lfsr_out; 
 
-// Instantiate the DUT (Device Under Test)
+// Instantiate the device, also comment out lfsr out which will put us
+// over 16 bits, only for debugging
 blackjack_top dut (
     .clk(clk),
     .reset(reset),
@@ -26,7 +27,7 @@ blackjack_top dut (
     .stand(stand),
     .hit(hit),
     .submit(submit),
-    .seed(seed),                // Connect seed
+    .seed(seed),                // Connect seed line to lsfr output
     .dealer_sum(dealer_sum),
     .player_sum(player_sum),
     .win(win),
@@ -35,7 +36,7 @@ blackjack_top dut (
     .blackjack(blackjack)
 );
 
-// Clock Generation: 100MHz Clock (10ns Period)
+// Clock Generation: 100MHz Clock (10ns Period), this can literally be whatever, faster than an Arduino but could run on a Teensy
 initial begin
     clk = 0;
     forever #5 clk = ~clk;  // Toggle clock every 5ns
@@ -59,7 +60,20 @@ initial begin
     stand = 0;
     hit = 0;
     submit = 0;
-    card_in = 5'd0;   // Initialize card_in to 0
+    card_in = 5'd0;   // Initialize card_in to 0, which means 00000 on the input
+
+    /*
+    Oh boy, randomization DOES NOT exist in Verilog standard, so no idea how to
+    do this, right now we take $random which means we just sample whatever
+    the random register as at any point in time, then we take $time which
+    is a relative time
+
+    Problem is THIS WILL ALWAYS be the same no matter what we do, and the fact
+    we can't get true random anywhere is asine, because that means this blackjack
+    simulator will always fail as it is easier to guess
+
+    Change the delay to see LFSR in action
+    */
 
     // Wait for a small delay to let $time increment
     #6;
@@ -75,9 +89,9 @@ initial begin
     // Apply Reset
     @(posedge clk);
     @(posedge clk);
-    reset = 0;   // De-assert reset
+    reset = 0;   // De-assert reset, probably doesn't need this
 
-    // Wait for a Couple of Clock Cycles
+    // Wait for a Couple of Clock Cycles because why not, we are testing
     @(posedge clk);
     @(posedge clk);
 
@@ -156,7 +170,7 @@ end
 
 // Monitor State Transitions and LFSR for Debugging
 always @(posedge clk) begin
-    // Uncomment the following line to display internal state and sums each clock cycle
+    // Uncomment the following line to display internal state and sums each clock cycle, you will need to reattach LFSR_out to both blackjack.v and blackjack_test.v in order for this to work
     /*
     $display("Time: %0t | State: %b | LFSR: %b | Player Sum: %d | Dealer Sum: %d | Blackjack: %b | Win: %b | Lose: %b | Draw: %b",
              $time, dut.current_state, lfsr_out, player_sum, dealer_sum, blackjack, win, lose, draw);
