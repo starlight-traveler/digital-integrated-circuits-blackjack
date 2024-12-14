@@ -7,7 +7,7 @@ module blackjack_top (
     input wire stand,             // Player chooses to stand
     input wire hit,               // Player chooses to hit
     input wire submit,            // Submit action to deal or draw cards
-    input wire [4:0] seed,        // New: Seed input for LFSR
+    input wire [4:0] seed,        // Seed input for LFSR
     output reg [5:0] dealer_sum,  // Sum of dealer's hand
     output reg [5:0] player_sum,  // Sum of player's hand
     output reg win,
@@ -16,7 +16,7 @@ module blackjack_top (
     output reg blackjack
 );
 
-    // Local parameters for state encoding
+    // Number of states, need five we have six here
     localparam S_IDLE         = 3'b000;
     localparam S_INIT_DEAL    = 3'b001;
     localparam S_PLAYER_TURN  = 3'b010;
@@ -32,7 +32,8 @@ module blackjack_top (
     reg player_done;
     reg dealer_done;
 
-    // LFSR for pseudo-random card generation
+    // LFSR for pseudo-random card generation, of course this is not random at all, given the fact
+    // it needs a SEED but what can we do except some weird polynomial math
     reg [4:0] lfsr;
     wire feedback;
     assign feedback = lfsr[4] ^ lfsr[2];
@@ -42,7 +43,7 @@ module blackjack_top (
 
     // Expose LFSR state
 
-    // Generate the card value from LFSR
+    // Generate the card value from LFSR using some funky math
     always @(*) begin
         card_temp = {2'b00, lfsr[3:0]} + 6'd1; // range 1 to 16
         if (card_temp > 13) begin
@@ -55,7 +56,7 @@ module blackjack_top (
         generated_card = card_temp[4:0];
     end
 
-    // State transition on clock edge or reset
+    // When the clock resets or a reset line is sent, but everything back to default values
     always @(posedge clk or posedge reset) begin
         if (reset) begin
             current_state     <= S_IDLE;
@@ -75,7 +76,7 @@ module blackjack_top (
         end
     end
 
-    // Next state logic based on current state and inputs
+    // Begin the state transistors, this is the entire game logic and it is so much fun!!!
     always @(*) begin
         next_state = current_state;
         case (current_state)
@@ -88,7 +89,8 @@ module blackjack_top (
             end
 
             S_INIT_DEAL: begin
-                // Wait until two cards are dealt to both player and dealer
+                // Wait until two cards are dealt to both player and dealer,
+                // we are essentially waiting for two submits before we transistor, because why not
                 if (card_count_player == 2 && card_count_dealer == 2) begin
                     // Check for initial blackjack
                     if (player_sum == 21 || dealer_sum == 21) begin
@@ -101,6 +103,7 @@ module blackjack_top (
                 end
             end
 
+            // Players turn
             S_PLAYER_TURN: begin
                 if (player_done) begin
                     next_state = S_DEALER_TURN;
@@ -109,6 +112,7 @@ module blackjack_top (
                 end
             end
 
+            // Dealer turn
             S_DEALER_TURN: begin
                 if (dealer_done) begin
                     next_state = S_EVAL;
@@ -117,6 +121,7 @@ module blackjack_top (
                 end
             end
 
+            // Evalutation state
             S_EVAL: begin
                 next_state = S_DONE;
             end
@@ -130,7 +135,7 @@ module blackjack_top (
         endcase
     end
 
-    // Datapath and game logic updates
+    // Datapath and game logic updates, this is podracing
     always @(posedge clk or posedge reset) begin
         if (reset) begin
             player_sum        <= 0;
@@ -143,7 +148,8 @@ module blackjack_top (
             win               <= 0;
             lose              <= 0;
             draw              <= 0;
-            // lfsr is already initialized above
+            // lfsr is already initialized above, so lets not change the randomness,
+            // even though that does not exist
         end else begin
             case (current_state)
                 S_IDLE: begin
@@ -162,12 +168,12 @@ module blackjack_top (
                     end
 
                     if (card_count_dealer < 2 && submit) begin
-                        dealer_sum        <= dealer_sum + generated_card; // Dealer uses generated_card
+                        dealer_sum        <= dealer_sum + generated_card; // Dealer uses the card that was mad eby lfsr that is not really random
                         card_count_dealer <= card_count_dealer + 1;
                         // Dealer blackjack is checked during evaluation
                     end
 
-                    // Advance LFSR for next card generation
+                    // Move LFSR for next card generation in the linear shift sequence
                     if (submit) begin
                         lfsr <= {lfsr[3:0], feedback};
                     end
