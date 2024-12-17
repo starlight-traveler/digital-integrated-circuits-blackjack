@@ -1,21 +1,54 @@
 xrun(64): 19.03-s013: (c) Copyright 1995-2019 Cadence Design Systems, Inc.
-TOOL:	xrun(64)	19.03-s013: Started on Dec 14, 2024 at 11:37:50 EST
+TOOL:	xrun(64)	19.03-s013: Started on Dec 17, 2024 at 15:14:43 EST
 xrun
 	blackjack.v
 	blackjack_test.v
+Recompiling... reason: file './blackjack_test.v' is newer than expected.
+	expected: Tue Dec 17 15:14:32 2024
+	actual:   Tue Dec 17 15:14:42 2024
+file: blackjack_test.v
+        perform_submit();
+                       |
+xmvlog: *W,TMTPAR (blackjack_test.v,83|23): A task enable with no arguments must not include an empty set of parentheses [10.2.2 (IEEE Std 1364-2005)].  The compiler has ignored the parentheses.  Use 'xmhelp xmvlog TMTPAR'  for further information.
+        perform_submit();
+                       |
+xmvlog: *W,TMTPAR (blackjack_test.v,87|23): A task enable with no arguments must not include an empty set of parentheses [10.2.2 (IEEE Std 1364-2005)].  The compiler has ignored the parentheses.  Use 'xmhelp xmvlog TMTPAR'  for further information.
+            perform_submit();
+                           |
+xmvlog: *W,TMTPAR (blackjack_test.v,111|27): A task enable with no arguments must not include an empty set of parentheses [10.2.2 (IEEE Std 1364-2005)].  The compiler has ignored the parentheses.  Use 'xmhelp xmvlog TMTPAR'  for further information.
+	module worklib.blackjack_top_tb:v
+		errors: 0, warnings: 3
+		Caching library 'worklib' ....... Done
+	Elaborating the design hierarchy:
+	Top level design units:
+		blackjack_top_tb
+	Building instance overlay tables: .................... Done
+	Generating native compiled code:
+		worklib.blackjack_top_tb:v <0x43f39877>
+			streams:   4, words: 12542
+	Building instance specific data structures.
+	Loading native compiled code:     .................... Done
+	Design hierarchy summary:
+		                 Instances  Unique
+		Modules:                 2       2
+		Registers:              30      30
+		Scalar wires:           10       -
+		Vectored wires:          4       -
+		Always blocks:           4       4
+		Initial blocks:          2       2
+		Cont. assignments:       1       1
+		Pseudo assignments:      1       1
+		Simulation timescale:  1ps
+	Writing initial simulation snapshot: worklib.blackjack_top_tb:v
 Loading snapshot worklib.blackjack_top_tb:v .................... Done
-xmsim: *W,XCLGNOPTM: The SystemVerilog constraint solver Xceligen options 'seed_only_rand and process_alternate_rng and ignore_worklib_name' are not specified and will default to 0. The recommended value for each of them is 1 which will become the default in a future release.
-SVSEED default: 1
-xmsim: *W,RNDXCELON: Xceligen, the new SystemVerilog constraint solver is used. Disabling Xceligen and using the legacy constraint solver is possible with "xrun/xmsim -xceligen on=0 ...".
 xcelium> source /escnfs/home/csesoft/cadence/installs/XCELIUM1903/tools/xcelium/files/xmsimrc
 xcelium> run
-Initial Seed: 00010
 ------------------------------------------------
-Final Player Sum: 14
-Final Dealer Sum: 18
-Blackjack: 0, Win: 0, Lose: 1, Draw: 0
+Final Player Sum: 18
+Final Dealer Sum: 17
+Blackjack: 0, Win: 1, Lose: 0, Draw: 0
 ------------------------------------------------
-Simulation complete via $finish(1) at time 395 NS + 0
-./blackjack_test.v:168     $finish;
+Simulation complete via $finish(1) at time 485 NS + 0
+./blackjack_test.v:125         $finish;
 xcelium> exit
-TOOL:	xrun(64)	19.03-s013: Exiting on Dec 14, 2024 at 11:37:50 EST  (total: 00:00:00)
+TOOL:	xrun(64)	19.03-s013: Exiting on Dec 17, 2024 at 15:14:44 EST  (total: 00:00:01)

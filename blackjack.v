@@ -16,7 +16,7 @@ module blackjack_top (
     output reg blackjack
 );
 
-    // Number of states, need five we have six here
+    // State definitions
     localparam S_IDLE         = 3'b000;
     localparam S_INIT_DEAL    = 3'b001;
     localparam S_PLAYER_TURN  = 3'b010;
@@ -27,13 +27,16 @@ module blackjack_top (
     reg [2:0] current_state, next_state;
 
     // Internal registers for counts and status
-    reg [1:0] card_count_player; 
+    reg [1:0] card_count_player;
     reg [1:0] card_count_dealer;
     reg player_done;
     reg dealer_done;
 
-    // LFSR for pseudo-random card generation, of course this is not random at all, given the fact
-    // it needs a SEED but what can we do except some weird polynomial math
+    // Track the number of Aces (for flexible 1 or 11 calculation)
+    reg [2:0] player_aces;
+    reg [2:0] dealer_aces;
+
+    // LFSR for pseudo-random card generation
     reg [4:0] lfsr;
     wire feedback;
     assign feedback = lfsr[4] ^ lfsr[2];
@@ -41,20 +44,79 @@ module blackjack_top (
     reg [5:0] card_temp;
     reg [4:0] generated_card;
 
-    // Generate the card value from LFSR using some funky math
+    // Procedure to add a card to player's sum and adjust for Aces
+    task add_player_card;
+        input [4:0] c;
+        reg [5:0] val;
+    begin
+        // Card c is already in range 1-10
+        val = c;
+        // Check if card is an Ace (we treat '1' as Ace)
+        if (val == 1) begin
+            player_aces = player_aces + 1;
+            player_sum = player_sum + 1; // Add as 1 first
+        end else begin
+            player_sum = player_sum + val;
+        end
+        // Adjust Aces: If we have Aces and can make one or more Aces count as 11 without busting
+        // Each Ace initially is counted as 1, adding 10 makes it 11.
+        // For multiple Aces, try upgrading as many as possible.
+        begin : adjust_aces
+            integer i;
+            for (i = 0; i < player_aces; i = i + 1) begin
+                if (player_sum <= 11) begin
+                    player_sum = player_sum + 10; // Turn one Ace from 1 to 11
+                end else begin
+                    // If turning another Ace into 11 would bust, don't do it
+                    disable adjust_aces;
+                end
+            end
+        end
+    end
+    endtask
+
+    // Procedure to add a card to dealer's sum and adjust for Aces
+    task add_dealer_card;
+        input [4:0] c;
+        reg [5:0] val;
+    begin
+        val = c;
+        if (val == 1) begin
+            dealer_aces = dealer_aces + 1;
+            dealer_sum = dealer_sum + 1;
+        end else begin
+            dealer_sum = dealer_sum + val;
+        end
+        // Adjust Aces for dealer
+        begin : adjust_aces_dealer
+            integer i;
+            for (i = 0; i < dealer_aces; i = i + 1) begin
+                if (dealer_sum <= 11) begin
+                    dealer_sum = dealer_sum + 10;
+                end else begin
+                    disable adjust_aces_dealer;
+                end
+            end
+        end
+    end
+    endtask
+
+    // Generate the card value from LFSR
+    // card_temp range: 1-13
+    // Map: 1=Ace(1), 2-10 as face value, 11/12/13 -> 10(J/Q/K)
     always @(*) begin
         card_temp = {2'b00, lfsr[3:0]} + 6'd1; // range 1 to 16
         if (card_temp > 13) begin
-            card_temp = card_temp % 13; // Ensure range 1-13
+            // Map values >13 back into 1-13 range
+            card_temp = ((card_temp - 1) % 13) + 1;
         end
-        // Map card_temp to standard Blackjack values
         if (card_temp > 10) begin
             card_temp = 10; // J, Q, K are treated as 10
         end
         generated_card = card_temp[4:0];
     end
 
-    // When the clock resets or a reset line is sent, but everything back to default values
+    // On reset
     always @(posedge clk or posedge reset) begin
         if (reset) begin
             current_state     <= S_IDLE;
@@ -68,13 +130,15 @@ module blackjack_top (
             win               <= 0;
             lose              <= 0;
             draw              <= 0;
-            lfsr              <= (seed != 0) ? seed : 5'b00001; // Initialize LFSR with seed or default to 00001
+            player_aces       <= 0;
+            dealer_aces       <= 0;
+            lfsr              <= (seed != 0) ? seed : 5'b00001;
         end else begin
             current_state <= next_state;
         end
     end
 
-    // Begin the state transistors, this is the entire game logic and it is so much fun!!!
+    // State transitions
     always @(*) begin
         next_state = current_state;
         case (current_state)
@@ -87,8 +151,6 @@ module blackjack_top (
             end
 
             S_INIT_DEAL: begin
-                // Wait until two cards are dealt to both player and dealer,
-                // we are essentially waiting for two submits before we transistor, because why not
                 if (card_count_player == 2 && card_count_dealer == 2) begin
                     // Check for initial blackjack
                     if (player_sum == 21 || dealer_sum == 21) begin
@@ -101,7 +163,6 @@ module blackjack_top (
                 end
             end
 
-            // Players turn
             S_PLAYER_TURN: begin
                 if (player_done) begin
                     next_state = S_DEALER_TURN;
@@ -110,7 +171,6 @@ module blackjack_top (
                 end
             end
 
-            // Dealer turn
             S_DEALER_TURN: begin
                 if (dealer_done) begin
                     next_state = S_EVAL;
@@ -119,13 +179,11 @@ module blackjack_top (
                 end
             end
 
-            // Evalutation state
             S_EVAL: begin
                 next_state = S_DONE;
             end
 
             S_DONE: begin
-                // Await reset or new game initiation
                 next_state = S_DONE;
             end
 
@@ -133,7 +191,7 @@ module blackjack_top (
         endcase
     end
 
-    // Datapath and game logic updates, this is podracing
+    // Datapath and game logic
     always @(posedge clk or posedge reset) begin
         if (reset) begin
             player_sum        <= 0;
@@ -146,32 +204,30 @@ module blackjack_top (
             win               <= 0;
             lose              <= 0;
             draw              <= 0;
-            // lfsr is already initialized above, so lets not change the randomness,
-            // even though that does not exist
+            player_aces       <= 0;
+            dealer_aces       <= 0;
         end else begin
             case (current_state)
                 S_IDLE: begin
-                    // No action needed; waiting for submit
+                    // Waiting for submit
                 end
 
                 S_INIT_DEAL: begin
                     // Deal two cards to player and dealer on submit pulses
                     if (card_count_player < 2 && submit) begin
-                        player_sum        <= player_sum + card_in; // Use card_in for player
+                        add_player_card(card_in); 
                         card_count_player <= card_count_player + 1;
                         // Check for player blackjack after second card
-                        if (card_count_player == 1 && (player_sum + card_in) == 21) begin
+                        if (card_count_player == 1 && player_sum == 21) begin
                             blackjack <= 1;
                         end
                     end
 
                     if (card_count_dealer < 2 && submit) begin
-                        dealer_sum        <= dealer_sum + generated_card; // Dealer uses the card that was mad eby lfsr that is not really random
+                        add_dealer_card(generated_card);
                         card_count_dealer <= card_count_dealer + 1;
-                        // Dealer blackjack is checked during evaluation
                     end
 
-                    // Move LFSR for next card generation in the linear shift sequence
                     if (submit) begin
                         lfsr <= {lfsr[3:0], feedback};
                     end
@@ -183,8 +239,7 @@ module blackjack_top (
                             // Player chooses to stand
                             player_done <= 1;
                         end else if (hit && submit) begin
-                            // Player chooses to hit
-                            player_sum        <= player_sum + generated_card;
+                            add_player_card(generated_card);
                             card_count_player <= card_count_player + 1;
                             lfsr              <= {lfsr[3:0], feedback};
                         end
@@ -192,16 +247,18 @@ module blackjack_top (
                         if (player_sum > 21) begin
                             player_done <= 1;
                         end
+                    end else begin
+                        // Already done
                     end
                 end
 
                 S_DEALER_TURN: begin
                     if (!dealer_done) begin
-                        // Dealer hits until sum >=17
+                        // Dealer hits until sum >= 17
                         if (dealer_sum >= 17) begin
                             dealer_done <=1;
                         end else if (submit) begin
-                            dealer_sum        <= dealer_sum + generated_card;
+                            add_dealer_card(generated_card);
                             card_count_dealer <= card_count_dealer +1;
                             lfsr              <= {lfsr[3:0], feedback};
                             // Check for bust
@@ -214,37 +271,35 @@ module blackjack_top (
 
                 S_EVAL: begin
                     // Reset previous results
-                    win    <= 0;
-                    lose   <= 0;
-                    draw   <= 0;
-                    blackjack <= 0;
-
+                    win       <= 0;
+                    lose      <= 0;
+                    draw      <= 0;
+                    // If we had marked blackjack earlier, we keep that in mind
                     // Evaluate results
                     if (player_sum > 21) begin
                         lose <= 1; // Player busts
                     end else if (dealer_sum > 21) begin
-                        win <=1;  // Dealer busts
+                        win <= 1;  // Dealer busts
                     end else if (player_sum > dealer_sum) begin
-                        win <=1; // Player has higher sum
+                        win <= 1; // Player higher sum
                     end else if (player_sum < dealer_sum) begin
-                        lose <=1; // Dealer has higher sum
+                        lose <= 1; // Dealer higher sum
                     end else begin
-                        draw <=1; // Tie
+                        draw <= 1; // Tie
                     end
 
                     // Check for initial blackjack
                     if (blackjack) begin
                         if (dealer_sum == 21) begin
-                            draw <=1; // Both have blackjack
+                            draw <= 1; // Both have blackjack
                         end else begin
-                            win <=1; // Player has blackjack
+                            win <= 1;  // Player has blackjack
                         end
                     end
                 end
 
                 S_DONE: begin
-                    // Awaiting reset or new game
-                    // Outputs remain stable
+                    // Waiting for next reset or new game
                 end
 
             endcase
