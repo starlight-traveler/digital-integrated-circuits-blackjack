@@ -13,7 +13,8 @@ module blackjack_top (
     output reg win,
     output reg lose,
     output reg draw,
-    output reg blackjack
+    output reg blackjack,
+    output wire [4:0] generated_card_out
 );
 
     // State definitions
@@ -41,9 +42,17 @@ module blackjack_top (
     wire feedback;
     assign feedback = lfsr[4] ^ lfsr[2];
 
+    
+    always @(posedge clk or posedge reset) begin
+        if (reset) begin
+            lfsr <= seed;
+        end else begin
+            lfsr <= {lfsr[3:0], lfsr[4] ^ lfsr[2]};
+        end
+    end
     reg [5:0] card_temp;
     reg [4:0] generated_card;
-
+    assign generated_card_out = generated_card;
     // Procedure to add a card to player's sum and adjust for Aces
     task add_player_card;
         input [4:0] c;
